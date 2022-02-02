@@ -58,7 +58,7 @@ def combine():
     """
     typer.echo(f"Ccombinando dados")
     subprocess.Popen(
-        f"chmod +x scripts/handle_zip.sh && ./scripts/handle_zip.sh", shell=True
+        f"chmod +x scripts/combine.sh && ./scripts/combine.sh", shell=True
     ).wait()
 
 
