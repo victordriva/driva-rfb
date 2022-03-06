@@ -1,22 +1,28 @@
 import os
+from pathlib import Path
 import shutil
 import typer
 import subprocess
 from multiprocessing import Pool
 
-from .download import has_new_crawl, get_last_modified_date
+from .download import has_new_crawl, get_last_modified_date, download_all
 
 app = typer.Typer()
 
 
 @app.command()
-def download():
+def download(
+    restart: bool = typer.Option(
+        False, help="Restart the download of files that failed previously."
+    )
+):
     """
     Use esse comando para baixar os dados do site da Receita Federal Brasileira.
     """
     typer.echo("Verificando se existe algo novo na Receita")
     if has_new_crawl():
         typer.echo("Novo crawleamento disponível, iniciando...")
+        download_all(restart)
     else:
         typer.echo("Nenhum novo dado disponível")
         raise typer.Abort()
@@ -29,10 +35,10 @@ def upload_zip():
     """
     timestamp = get_last_modified_date()
     typer.echo(f"Enviando diretório para GCS com data: {timestamp}")
-    subprocess.Popen(
+    subprocess.check_output(
         f"gsutil -m cp zip/*.zip gs://driva-lake/crawlers/RFB/{timestamp}/zip",
         shell=True,
-    ).wait()
+    )
 
 
 @app.command()
@@ -48,7 +54,7 @@ def extract():
 
 
 def extract_file(file):
-    subprocess.Popen(f"unzip {file} -d extracted", shell=True).wait()
+    subprocess.check_output(f"unzip {file} -d extracted", shell=True)
 
 
 @app.command()
@@ -56,10 +62,11 @@ def combine():
     """
     Use esse comando para processar o diretório zippado gerando o diretório extraído
     """
-    typer.echo(f"Ccombinando dados")
-    subprocess.Popen(
-        f"chmod +x scripts/combine.sh && ./scripts/combine.sh", shell=True
-    ).wait()
+    typer.echo(f"Combinando dados")
+    script_path = Path(__file__).parent / "scripts/combine.sh"
+    subprocess.check_output(
+        f"chmod +x {script_path} && {script_path}", shell=True, cwd="extracted"
+    )
 
 
 @app.command()
@@ -69,10 +76,10 @@ def upload_extracted():
     """
     timestamp = get_last_modified_date()
     typer.echo(f"Enviando diretório para GCS com data: {timestamp}")
-    subprocess.Popen(
-        f"gsutil -m cp extracted/*.csv gs://driva-lake/crawlers/RFB/{timestamp}/extracted",
+    subprocess.check_output(
+        f"gsutil -o GSUtil:parallel_composite_upload_threshold=300M -m cp extracted/*.csv gs://driva-lake/crawlers/RFB/{timestamp}/extracted",
         shell=True,
-    ).wait()
+    )
 
 
 @app.command()
@@ -90,10 +97,10 @@ def all():
     """
     Use esse comando para baixar, extrair e combinar todos os dados.
     """
-    download()
-    upload_zip()
-    extract()
-    combine()
+    # download()
+    # upload_zip()
+    # extract()
+    # combine()
     upload_extracted()
     clean()
 
