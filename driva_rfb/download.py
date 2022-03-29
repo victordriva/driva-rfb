@@ -1,3 +1,5 @@
+import os
+import shutil
 import subprocess
 from datetime import datetime
 from multiprocessing import Pool
@@ -75,8 +77,8 @@ def download_all(restart: bool):
             f"37 arquivos já foram baixados. Apague a pasta {DOWNLOAD_FOLDER} caso queira baixar novamente."
         )
         return
-    # shutil.rmtree(DOWNLOAD_FOLDER, ignore_errors=True)
-    # os.makedirs(DOWNLOAD_FOLDER)
+    shutil.rmtree(DOWNLOAD_FOLDER, ignore_errors=True)
+    os.makedirs(DOWNLOAD_FOLDER)
 
     with Pool() as p:
         p.map(_download, links)
