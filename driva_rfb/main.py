@@ -1,11 +1,12 @@
 import os
-from pathlib import Path
 import shutil
-import typer
 import subprocess
 from multiprocessing import Pool
+from pathlib import Path
 
-from .download import has_new_crawl, get_last_modified_date, download_all
+import typer
+
+from .download import download_all, get_last_modified_date, has_new_crawl
 
 app = typer.Typer()
 
@@ -97,10 +98,10 @@ def all():
     """
     Use esse comando para baixar, extrair e combinar todos os dados.
     """
-    # download()
-    # upload_zip()
-    # extract()
-    # combine()
+    download()
+    upload_zip()
+    extract()
+    combine()
     upload_extracted()
     clean()
 

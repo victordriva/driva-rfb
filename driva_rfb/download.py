@@ -1,21 +1,19 @@
+import subprocess
+from datetime import datetime
 from multiprocessing import Pool
 from pathlib import Path
 from typing import List, Set
-from datetime import datetime
-import subprocess
-import shutil
-import os
 
-from pywget import wget
+import requests
 from bs4 import BeautifulSoup
-import httpx
+from pywget import wget
 
 URL = "http://200.152.38.155/CNPJ/"
 DOWNLOAD_FOLDER = "zip"
 
 
 def get_last_modified_date() -> str:
-    html = httpx.get(URL).text
+    html = requests.get(URL).text
     soup = BeautifulSoup(html, "html.parser")
 
     last_modified = soup.find_all("tr")[3].find_all("td")[2].text.strip()
@@ -26,7 +24,7 @@ def get_last_modified_date() -> str:
 
 
 def get_download_links() -> List[str]:
-    html = httpx.get(URL).text
+    html = requests.get(URL).text
     soup = BeautifulSoup(html, "html.parser")
     hrefs = [a.get("href") for a in soup.find_all("a")]
     urls = [URL + href for href in hrefs if href.endswith(".zip")]
@@ -39,7 +37,9 @@ def get_dates_seen() -> Set[str]:
         .decode("utf-8")
         .split("\n")
     )
-    already_seen = [ seen.replace("gs://driva-lake/crawlers/RFB/", "") for seen in already_seen]
+    already_seen = [
+        seen.replace("gs://driva-lake/crawlers/RFB/", "") for seen in already_seen
+    ]
     filtered = set()
     for date in already_seen:
         if date:
@@ -54,6 +54,7 @@ def has_new_crawl() -> bool:
 def _download(url: str):
     wget.download(url, DOWNLOAD_FOLDER + "/")
 
+
 def check_if_has_tmp() -> List[str]:
     links = []
     for file in Path(__file__).parents[1].glob("*.tmp"):
@@ -62,6 +63,7 @@ def check_if_has_tmp() -> List[str]:
         links.append(f"http://200.152.38.155/CNPJ/{filename}")
     return links
 
+
 def download_all(restart: bool):
     links = get_download_links()
     tmp_links = check_if_has_tmp()
@@ -69,7 +71,9 @@ def download_all(restart: bool):
         links = tmp_links
     downloaded_files = set(Path(DOWNLOAD_FOLDER).glob("*.zip"))
     if len(downloaded_files) == 37:
-        print(f"37 arquivos já foram baixados. Apague a pasta {DOWNLOAD_FOLDER} caso queira baixar novamente.")
+        print(
+            f"37 arquivos já foram baixados. Apague a pasta {DOWNLOAD_FOLDER} caso queira baixar novamente."
+        )
         return
     # shutil.rmtree(DOWNLOAD_FOLDER, ignore_errors=True)
     # os.makedirs(DOWNLOAD_FOLDER)
