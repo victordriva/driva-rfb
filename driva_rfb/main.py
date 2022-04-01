@@ -14,14 +14,14 @@ app = typer.Typer()
 @app.command()
 def download(
     restart: bool = typer.Option(
-        False, help="Restart the download of files that failed previously."
+        False, help="Indica se o download deve ser reiniciado, após uma falha."
     )
 ):
     """
-    Use esse comando para baixar os dados do site da Receita Federal Brasileira.
+    Baixa os dados do site da Receita Federal Brasileira.
     """
     typer.echo("Verificando se existe algo novo na Receita")
-    if has_new_crawl():
+    if has_new_crawl() or restart:
         typer.echo("Novo crawleamento disponível, iniciando...")
         download_all(restart)
     else:
@@ -32,12 +32,12 @@ def download(
 @app.command()
 def upload_zip():
     """
-    Use esse comando para enviar o diretório zippado (como foi baixado) para o Google Cloud Storage
+    Envia o diretório zippado (como foi baixado) para o Google Cloud Storage.
     """
     timestamp = get_last_modified_date()
     typer.echo(f"Enviando diretório para GCS com data: {timestamp}")
     subprocess.check_output(
-        f"gsutil -m cp zip/*.zip gs://driva-lake/crawlers/RFB/{timestamp}/zip",
+        f"gsutil -o GSUtil:parallel_composite_upload_threshold=300M -m cp zip/*.zip gs://driva-lake/crawlers/RFB/{timestamp}/zip",
         shell=True,
     )
 
@@ -45,7 +45,7 @@ def upload_zip():
 @app.command()
 def extract():
     """
-    Use esse comando para extrair os arquivos baixados.
+    Extrai os arquivos baixados.
     """
     typer.echo("Extraindo arquivos")
     os.makedirs("extracted", exist_ok=True)
@@ -61,19 +61,46 @@ def extract_file(file):
 @app.command()
 def combine():
     """
-    Use esse comando para processar o diretório zippado gerando o diretório extraído
+    Processa o diretório compactado gerando o diretório extracted.
     """
-    typer.echo(f"Combinando dados")
+    typer.echo("Combinando dados")
     script_path = Path(__file__).parent / "scripts/combine.sh"
     subprocess.check_output(
         f"chmod +x {script_path} && {script_path}", shell=True, cwd="extracted"
     )
 
+    partial_estab = subprocess.check_output(
+        "wc -l *.ESTABELE", shell=True, cwd="extracted"
+    )
+    total_estab = subprocess.check_output(
+        "wc -l ESTABELE.csv", shell=True, cwd="extracted"
+    )
+    typer.echo(f"Parcial de estabelecimentos:\n{partial_estab}\n")
+    typer.echo(f"Total de estabelecimentos:\n{total_estab}")
+
+    partial_empre = subprocess.check_output(
+        "wc -l *EMPRECSV", shell=True, cwd="extracted"
+    )
+    total_empre = subprocess.check_output(
+        "wc -l EMPRERFB.csv", shell=True, cwd="extracted"
+    )
+    typer.echo(f"Parcial de empresas:\n{partial_empre}\n")
+    typer.echo(f"Total de empresas:\n{total_empre}")
+
+    partial_socio = subprocess.check_output(
+        "wc -l *SOCIOCSV", shell=True, cwd="extracted"
+    )
+    total_socio = subprocess.check_output(
+        "wc -l SOCIORFB.csv", shell=True, cwd="extracted"
+    )
+    typer.echo(f"Parcial de socios:\n{partial_socio}\n")
+    typer.echo(f"Total de socios:\n{total_socio}")
+
 
 @app.command()
 def upload_extracted():
     """
-    Use esse comando para enviar o diretório extraído (após o processamento básico) para o Google Cloud Storage
+    Envia o diretório extracted (após o processamento básico) para o Google Cloud Storage.
     """
     timestamp = get_last_modified_date()
     typer.echo(f"Enviando diretório para GCS com data: {timestamp}")
@@ -84,9 +111,10 @@ def upload_extracted():
 
 
 @app.command()
-def clean():
+def clear_local():
     """
-    Use esse comando para apagar qualquer dado gerado pela CLI.
+    Apaga qualquer dado gerado pela CLI.
+    Cuidado essa ação não pode ser desfeita.
     """
     typer.echo("Limpando diretórios")
     shutil.rmtree("extracted")
@@ -94,16 +122,22 @@ def clean():
 
 
 @app.command()
-def all():
+def all(
+    clear: bool = typer.Option(
+        True, help="Indica se deve apagar os dados locais, após terminar."
+    )
+):
     """
-    Use esse comando para baixar, extrair e combinar todos os dados.
+    Baixa, extrai e combina todos os dados, enviando os resultados para o Google Cloud Storage.
+    Ao final do processo apaga todos os arquivos locais.
     """
     download()
     upload_zip()
     extract()
     combine()
     upload_extracted()
-    clean()
+    if clear:
+        clear_local()
 
 
 if __name__ == "__main__":
