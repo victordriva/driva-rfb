@@ -2,16 +2,15 @@ import os
 import shutil
 import subprocess
 from datetime import datetime
-from multiprocessing import Pool
 from pathlib import Path
 from typing import List, Set
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from bs4 import BeautifulSoup
-from pywget import wget
 
 URL = "http://200.152.38.155/CNPJ/"
-DOWNLOAD_FOLDER = "zip"
+DOWNLOAD_FOLDER = "./zip"
 
 
 def get_last_modified_date() -> str:
@@ -54,7 +53,18 @@ def has_new_crawl() -> bool:
 
 
 def _download(url: str):
-    wget.download(url, DOWNLOAD_FOLDER + "/")
+    process = subprocess.Popen(
+        f"aria2c -c -x16 {url} -d {DOWNLOAD_FOLDER} --show-console-readout=false",
+        shell=True,
+        stdout=subprocess.PIPE,
+    )
+
+    while True:
+        line = process.stdout.readline()
+        if process.poll() is not None:
+            break
+        if line:
+            print(line.decode("utf-8").strip())
 
 
 def check_if_has_tmp() -> List[str]:
@@ -77,8 +87,11 @@ def download_all(restart: bool):
             f"37 arquivos já foram baixados. Apague a pasta {DOWNLOAD_FOLDER} caso queira baixar novamente."
         )
         return
-    shutil.rmtree(DOWNLOAD_FOLDER, ignore_errors=True)
-    os.makedirs(DOWNLOAD_FOLDER)
+    if not restart:
+        shutil.rmtree(DOWNLOAD_FOLDER, ignore_errors=True)
+        os.makedirs(DOWNLOAD_FOLDER)
+    with ThreadPoolExecutor() as executor:
+        executor.map(_download, links)
 
-    with Pool() as p:
-        p.map(_download, links)
+    if len(list(Path(DOWNLOAD_FOLDER).glob("*.zip"))) != len(links):
+        raise ValueError("Não foi possível baixar todos os arquivos")
